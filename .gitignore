@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# ผลลัพธ์ที่นักศึกษาสร้างระหว่างเรียน
+note.txt
+my_geo.py
+clean_rainfall.csv
+annual_summary*.csv
+summary_*.csv
+*.png
+Sarabun-Regular.ttf
