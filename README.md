@@ -17,7 +17,7 @@
 3. รันทีละเซลล์ด้วย `Shift` + `Enter`
 4. ในบทที่ 00–06 จะมีเซลล์ ✍️ ว่างไว้ใต้ทุกหัวข้อ — **ให้พิมพ์โค้ดตามด้วยตัวเอง ห้าม copy–paste**
 
-> ทุกบทมีแบบฝึกหัดท้ายบทพร้อมเฉลย ผู้สอนสามารถลบส่วนเฉลยออกก่อนแจกได้
+> ทุกบทมีแบบฝึกหัดท้ายบท ผู้สอนจะแจกเฉลยหลังหมดเวลาทำในคาบ
 
 ---
 
@@ -37,6 +37,7 @@
 | 09 | NumPy & Pandas | array, vectorization, masking, `NaN`, DataFrame, `groupby` | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/09_NumPy_and_Pandas_Basics.ipynb) |
 | 10 | Matplotlib | line/bar/scatter/histogram, `subplots`, ฟอนต์ไทย, `savefig` | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/10_Matplotlib_Visualization.ipynb) |
 | 11 | Mini Project | วิเคราะห์ฝนรายวันจังหวัดชลบุรี ปี 2025 ครบกระบวนการ | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/11_MiniProject_Rainfall_Analysis.ipynb) |
+| 12 | **บทเสริม** — ERA5 Weather Maps | NetCDF, `xarray`, `cartopy`, wind barb, streamline, แผนที่หลายช่วงเวลา | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/12_ERA5_Weather_Maps.ipynb) |
 
 ---
 
@@ -50,9 +51,10 @@
 | 4 | 06 + 07 | ข้อมูลแบบ key–value และการห่อโค้ดเป็นฟังก์ชัน |
 | 5 | 08 + 09 | จากไฟล์จริงสู่ตารางข้อมูล |
 | 6 | 10 + 11 | เห็นภาพ และทำงานจริงหนึ่งชิ้น |
+| — | 12 | **บทเสริม** นอกคอร์ส 12 ชั่วโมง ใช้เป็นคาบที่ 7 งานกลุ่มปลายภาค หรือให้อ่านเอง |
 
-รายละเอียดการจัดเวลาแต่ละคาบ จุดประสงค์การเรียนรู้ และจุดที่นักศึกษามักติด
-อยู่ใน [`COURSE_PLAN.md`](COURSE_PLAN.md)
+แผนการสอนรายคาบและเฉลยแบบฝึกหัดอยู่ที่คลังของผู้สอน
+ผู้สอนจะแจกเฉลยหลังหมดเวลาทำแบบฝึกหัดในแต่ละคาบ
 
 ---
 
@@ -61,18 +63,21 @@
 ```
 Teaching_Python_for_Geography/
 ├── README.md                  <- ไฟล์นี้
-├── COURSE_PLAN.md             <- แผนการสอนละเอียดรายคาบ (สำหรับผู้สอน)
 ├── 00_Getting_Started_Colab.ipynb
 ├── 01_Variables_and_DataTypes.ipynb
 ├── ...
 ├── 11_MiniProject_Rainfall_Analysis.ipynb
+├── 12_ERA5_Weather_Maps.ipynb     <- บทเสริม
 ├── data/
 │   ├── stations.csv               <- ข้อมูลสถานี 4 แห่ง จ.ชลบุรี
 │   ├── rainfall_daily_2025.csv    <- ฝนรายวัน 4 สถานี ตลอดปี 2025 (1,460 แถว)
-│   └── messy_rainfall.csv         <- ข้อมูลสกปรก ใช้สอน error handling
+│   ├── messy_rainfall.csv         <- ข้อมูลสกปรก ใช้สอน error handling
+│   └── era5_demo_20250914.nc      <- ข้อมูลกริดโครงสร้างแบบ ERA5 ใช้ในบทที่ 12
 └── utils/
-    ├── make_datasets.py           <- script สร้างชุดข้อมูลใหม่ (เปลี่ยนปี/สถานีได้)
-    └── geo_utils.py               <- ฟังก์ชันที่ใช้ซ้ำได้ ทั้งคอร์ส
+    ├── make_datasets.py           <- script สร้างชุดข้อมูลฝนใหม่ (เปลี่ยนปี/สถานีได้)
+    ├── make_era5_demo.py          <- script สร้างชุดข้อมูลกริดแบบ ERA5 ใหม่
+    ├── geo_utils.py               <- ฟังก์ชันที่ใช้ซ้ำได้ ทั้งคอร์ส
+    └── era5_utils.py              <- ฟังก์ชันเปิดไฟล์ ERA5 และพล็อตแผนที่อากาศ
 ```
 
 โค้ดที่เป็น **"กระบวนการ"** ทั้งหมดอยู่ในโฟลเดอร์ `utils/` เป็นไฟล์ `.py`
@@ -102,6 +107,12 @@ gu.annual_summary(df)
 หากต้องการเปลี่ยนไปใช้ข้อมูลจริง ให้แทนที่ไฟล์ใน `data/` โดยคงชื่อคอลัมน์เดิมไว้
 (`date`, `station_id`, `station_name`, `province`, `rain_mm`) โค้ดทุกบทจะทำงานต่อได้เลย
 
+ไฟล์ `era5_demo_20250914.nc` ที่ใช้ในบทที่ 12 ก็เป็นข้อมูลสังเคราะห์เช่นกัน
+สร้างให้มีโครงสร้างเหมือน ERA5 reanalysis ทุกอย่าง (ชื่อตัวแปร มิติ หน่วย CF convention)
+จำลองหย่อมความกดอากาศต่ำเคลื่อนจากอ่าวตังเกี๋ยเข้าสู่อินโดจีน
+วิธีดึง ERA5 ตัวจริงจาก Copernicus Climate Data Store อยู่ในภาคผนวกท้ายบทที่ 12
+และเมื่อเปลี่ยนไปใช้ไฟล์จริงแล้ว โค้ดในบทนั้นใช้ได้เหมือนเดิมไม่ต้องแก้
+
 ---
 
 ## สิ่งที่นักศึกษาต้องเตรียม
@@ -112,9 +123,11 @@ gu.annual_summary(df)
 
 ---
 
-## หมายเหตุสำหรับผู้สอน
+## ติดปัญหาระหว่างเรียน
 
-- ถ้าเปลี่ยนชื่อ repo หรือ GitHub account ให้แก้ URL ในตัวแปร `BASE`
-  ที่เซลล์แรกของบทที่ 08–11 (บรรทัดเดียว) และแก้ลิงก์ badge ใน README
-- บทที่ 11 มีเฉลยอ้างอิงอยู่ท้าย notebook ให้ลบออกก่อนแจกนักศึกษา
-- แบบฝึกหัดท้ายบทของทุกบทมีเฉลยอยู่ใน text cell สุดท้ายเช่นกัน
+- **รันเซลล์แล้วขึ้น error ที่ไม่เข้าใจ** — อ่านบรรทัดสุดท้ายของข้อความก่อน มันบอกชนิดของปัญหา
+- **ตัวแปรมั่ว หรือแก้โค้ดแล้วผลไม่เปลี่ยน** — Runtime → Restart session แล้วรันใหม่ตั้งแต่เซลล์แรก
+- **บท 08–12 หาไฟล์ข้อมูลไม่เจอ** — รันเซลล์แรกของบทนั้นก่อนเสมอ เซลล์นั้นทำหน้าที่ดาวน์โหลดข้อมูล
+- **กราฟขึ้นเป็นสี่เหลี่ยม □□□** — ยังไม่ได้รันเซลล์ตั้งค่าฟอนต์ไทย
+- **บท 12 ขึ้นว่าโหลดแผนที่ฐานไม่ได้** — เครือข่ายบล็อกการดาวน์โหลดข้อมูล Natural Earth
+  แผนที่จะไม่มีเส้นชายฝั่ง แต่ข้อมูลที่พล็อตยังถูกต้องทุกอย่าง ใช้เรียนต่อได้
