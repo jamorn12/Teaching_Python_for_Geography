@@ -265,7 +265,37 @@ def load_case(case_id: str, outdir: str = "data/cases") -> xr.Dataset:
     offsets = ((pd.to_datetime(ds["time"].values).normalize() - d0)
                .days.values.astype(int))
     ds = ds.assign_coords(day_offset=("time", offsets))
+
+    ds = ensure_rh(ds)
+    if not has_rh(ds):
+        print(f"หมายเหตุ: ไฟล์ของเคส {case_id} ไม่มีข้อมูลความชื้นสัมพัทธ์")
+        print("  ส่วนที่วิเคราะห์ความชื้นจะถูกข้าม ส่วนอื่นใช้ได้ตามปกติ")
+        print("  วิธีแก้: ดึงข้อมูลใหม่ด้วย fetch_case_data.py เวอร์ชันล่าสุด")
     return ds
+
+
+def ensure_rh(ds: xr.Dataset) -> xr.Dataset:
+    """
+    ทำให้ Dataset มีตัวแปร r (ความชื้นสัมพัทธ์) เสมอ ถ้าทำได้
+
+    ชุดข้อมูลจาก CDS มี r มาให้เลย
+    ชุดจาก Google Cloud มีแต่ q (specific humidity) กับ t (temperature)
+    จึงคำนวณ r ให้ตรงนี้ เพื่อให้โค้ดวิเคราะห์ชุดเดียวใช้ได้กับทั้งสองแหล่ง
+
+    ถ้าไม่มีทั้ง r และ (q, t) จะคืนข้อมูลเดิมโดยไม่ error
+    ส่วนที่ต้องใช้ความชื้นจะข้ามไปพร้อมข้อความบอกเหตุผล
+    """
+    if "r" in ds.data_vars:
+        return ds
+    if "q" in ds.data_vars and "t" in ds.data_vars:
+        ds = ds.assign(r=eu.relative_humidity_from_q(
+            ds["q"], ds["t"], ds["level"].values))
+    return ds
+
+
+def has_rh(ds: xr.Dataset) -> bool:
+    """ตรวจว่าข้อมูลชุดนี้ใช้วิเคราะห์ความชื้นได้หรือไม่"""
+    return "r" in ds.data_vars
 
 
 def describe_case(case_id: str) -> str:
@@ -354,7 +384,8 @@ def point_series(ds: xr.Dataset, points: dict) -> pd.DataFrame:
                 "mslp_hpa": round(float(pt["msl"]) / 100, 1),
                 "t2m_c": round(float(pt["t2m"]) - 273.15, 1),
                 "rain_mm": round(float(pt["tp"]), 2),
-                "rh850": round(float(pt["r"].sel(level=850)), 1),
+                "rh850": (round(float(pt["r"].sel(level=850)), 1)
+                          if "r" in pt.data_vars else np.nan),
                 "ws850": round(float(np.sqrt(u850**2 + v850**2)), 1),
                 "wdir850": round(float((270 - np.degrees(np.arctan2(v850, u850))) % 360)),
             })
@@ -376,7 +407,8 @@ def case_summary(ds: xr.Dataset, case_id: str) -> pd.DataFrame:
             "mslp_min_hpa": round(float(sel["msl"].min()) / 100, 1),
             "rain_max_mm": round(float(rain_d.sel(time=day).max()), 1),
             "ws850_max_ms": round(float(ws.max()), 1),
-            "rh850_mean_pct": round(float(sel["r"].sel(level=850).mean()), 1),
+            "rh850_mean_pct": (round(float(sel["r"].sel(level=850).mean()), 1)
+                               if has_rh(ds) else np.nan),
         })
     return pd.DataFrame(rows)
 
@@ -397,6 +429,11 @@ def panel_daily(ds: xr.Dataset, case_id: str, variable: str = "rain",
     import matplotlib.pyplot as plt
 
     info = case_info(case_id)
+    if variable == "rh" and not has_rh(ds):
+        print("ข้ามแผนภาพความชื้น เพราะไฟล์นี้ไม่มีตัวแปร r")
+        print("ดึงข้อมูลใหม่ด้วย fetch_case_data.py เวอร์ชันล่าสุดเพื่อให้ได้ความชื้นมาด้วย")
+        return None
+
     rain_d = daily_rain(ds)
     days = rain_d["time"].values
     nrows = int(np.ceil(len(days) / ncols))

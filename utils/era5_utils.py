@@ -351,3 +351,37 @@ def area_mean(da: xr.DataArray) -> float:
     weights = np.cos(np.radians(da["latitude"]))
     weights.name = "weights"
     return float(da.weighted(weights).mean(dim=["latitude", "longitude"]).values)
+
+def relative_humidity_from_q(q: xr.DataArray, t: xr.DataArray,
+                             level_hpa) -> xr.DataArray:
+    """
+    คำนวณความชื้นสัมพัทธ์ (%) จาก specific humidity และอุณหภูมิ
+
+    จำเป็นเพราะสำเนา ERA5 บน Google Cloud เก็บ specific_humidity (q)
+    แต่ไม่มี relative_humidity (r) ให้โดยตรง ขณะที่ชุดจาก CDS มี r มาเลย
+    ฟังก์ชันนี้ทำให้ข้อมูลจากสองแหล่งมีตัวแปรชุดเดียวกัน
+
+    วิธีคำนวณ
+      1. แปลง q เป็นความดันไอน้ำ  e = q * p / (0.622 + 0.378 * q)
+      2. หาความดันไอน้ำอิ่มตัว es ด้วยสูตร Tetens
+         เหนือน้ำเมื่อ T > 0 องศา และเหนือน้ำแข็งเมื่อ T < 0 องศา
+      3. RH = 100 * e / es
+
+    ค่าที่ได้ต่างจาก r ของ ECMWF เล็กน้อย (ไม่กี่เปอร์เซ็นต์) เพราะ ECMWF
+    ใช้การผสมระหว่างน้ำกับน้ำแข็งในช่วง -23 ถึง 0 องศา ส่วนที่นี่สลับที่ 0 องศา
+    เพียงพอสำหรับการอ่านแผนที่ แต่ถ้าต้องการความแม่นยำสูงให้ใช้ชุดจาก CDS
+    """
+    p_pa = xr.DataArray(level_hpa, dims="level",
+                        coords={"level": level_hpa}) * 100.0 \
+        if hasattr(level_hpa, "__len__") else float(level_hpa) * 100.0
+
+    e = q * p_pa / (0.622 + 0.378 * q)
+    t_c = t - 273.15
+    es_water = 611.21 * np.exp(17.502 * t_c / (t_c + 240.97))
+    es_ice = 611.21 * np.exp(22.587 * t_c / (t_c + 273.86))
+    es = xr.where(t_c > 0, es_water, es_ice)
+
+    rh = (100.0 * e / es).clip(0.0, 100.0)
+    rh.attrs = {"long_name": "Relative humidity (คำนวณจาก q และ T)",
+                "units": "%"}
+    return rh

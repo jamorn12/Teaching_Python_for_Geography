@@ -61,6 +61,8 @@ from era5_cases import CASE_ORDER, CASES  # noqa: E402
 LEVELS = [1000, 925, 850, 700, 500, 200]
 
 # ชื่อตัวแปรแบบเต็มของ ARCO-ERA5 -> ชื่อย่อแบบ CDS ที่โน้ตบุ๊กใช้
+# สำเนา ERA5 บน Google Cloud ไม่มี relative_humidity ให้โดยตรง
+# มีแต่ specific_humidity กับ temperature จึงต้องดึงสองตัวนี้มาคำนวณ r เอง
 GCS_RENAME = {
     "2m_temperature": "t2m",
     "mean_sea_level_pressure": "msl",
@@ -69,6 +71,8 @@ GCS_RENAME = {
     "v_component_of_wind": "v",
     "geopotential": "z",
     "relative_humidity": "r",
+    "specific_humidity": "q",
+    "temperature": "t",
 }
 
 ARCO_STORE = (
@@ -109,7 +113,22 @@ def fetch_from_gcs(case: dict, resolution: float) -> xr.Dataset:
 
     sub = sub.rename({k: v for k, v in GCS_RENAME.items() if k in sub})
     print("  กำลังโหลดข้อมูลลงหน่วยความจำ")
-    return _finalize(sub.load(), case, resolution, tp_in_metres=True)
+    sub = sub.load()
+
+    # ---- สร้างความชื้นสัมพัทธ์ให้เหมือนชุดจาก CDS ----
+    import era5_utils as eu
+
+    if "r" not in sub.data_vars and {"q", "t"} <= set(sub.data_vars):
+        sub = sub.assign(r=eu.relative_humidity_from_q(
+            sub["q"], sub["t"], sub["level"].values))
+        print("  คำนวณความชื้นสัมพัทธ์จาก q และ T เรียบร้อย")
+    if "r" not in sub.data_vars:
+        print("  เตือน: ไม่มีข้อมูลความชื้นสัมพัทธ์ในชุดนี้")
+
+    # q กับ t ใช้แค่คำนวณ r ไม่ต้องเก็บไว้ จะได้ไฟล์เล็กลง
+    sub = sub.drop_vars([v for v in ("q", "t") if v in sub.data_vars])
+
+    return _finalize(sub, case, resolution, tp_in_metres=True)
 
 
 # ------------------------------------------------------------------
@@ -153,10 +172,54 @@ def open_cds_result(path: str) -> xr.Dataset:
 # ------------------------------------------------------------------
 # แหล่งที่ 2 : Copernicus CDS (ต้องสมัคร)
 # ------------------------------------------------------------------
+def check_cdsapi_version() -> str:
+    """
+    ตรวจว่า cdsapi ใหม่พอหรือยัง แล้วคืนเลขเวอร์ชัน
+
+    CDS เปลี่ยนที่อยู่ API ไปเมื่อปี 2024 client รุ่นก่อน 0.7.4 จะยิงไปที่
+    .../api/resources/<dataset> ซึ่งถูกยกเลิกแล้ว และได้ 404 กลับมาเสมอ
+    ตรวจตรงนี้เพื่อให้ error บอกสาเหตุชัด แทนที่จะไปตายตอนยิง request
+    """
+    import re
+
+    # cdsapi รุ่นใหม่เอา __version__ ออกไปแล้ว ต้องอ่านจาก metadata ของแพ็กเกจ
+    # ถ้าอ่านจาก __version__ อย่างเดียวจะได้ค่าว่างแล้วเข้าใจผิดว่าเป็นรุ่นเก่า
+    version = ""
+    try:
+        import importlib.metadata as _md
+        version = _md.version("cdsapi")
+    except Exception:
+        try:
+            import cdsapi
+            version = getattr(cdsapi, "__version__", "")
+        except Exception:
+            version = ""
+
+    if not version:
+        print("    อ่านเวอร์ชัน cdsapi ไม่ได้ ข้ามการตรวจ")
+        return "unknown"
+
+    parts = tuple(int(x) for x in re.findall(r"\d+", version)[:3])
+    while len(parts) < 3:
+        parts = parts + (0,)
+
+    if parts < (0, 7, 4):
+        raise RuntimeError(
+            f"cdsapi เวอร์ชัน {version} เก่าเกินไป ต้องใช้ 0.7.4 ขึ้นไป\n\n"
+            "วิธีแก้บน Colab ทำตามลำดับนี้ ห้ามข้ามข้อ 2\n"
+            "  1) !pip install -q --upgrade --force-reinstall \"cdsapi>=0.7.4\"\n"
+            "  2) เมนู Runtime -> Restart session   <-- จำเป็น\n"
+            "  3) รันเซลล์ดึงข้อมูลใหม่อีกครั้ง\n\n"
+            "ถ้าไม่ restart Python จะยังใช้ไลบรารีตัวเก่าที่โหลดค้างในหน่วยความจำอยู่"
+        )
+    return version
+
+
 def fetch_from_cds(case: dict, resolution: float, workdir: str) -> xr.Dataset:
     """ขอข้อมูลจาก Copernicus Climate Data Store สองชุดแล้วรวมกัน"""
     import cdsapi
 
+    print("  cdsapi เวอร์ชัน", check_cdsapi_version())
     client = cdsapi.Client()
     days = pd.date_range(case["start"], case["end"], freq="D")
     years = sorted({f"{d.year}" for d in days})
@@ -204,10 +267,33 @@ def fetch_from_cds(case: dict, resolution: float, workdir: str) -> xr.Dataset:
             sl_path,
         )
 
-    pl = open_cds_result(pl_path)
-    sl = open_cds_result(sl_path)
+    pl = open_cds_result(pl_path)      # ราย 6 ชั่วโมง
+    sl = open_cds_result(sl_path)      # รายชั่วโมง (เพราะต้องรวมฝน)
+
+    # ---- สำคัญมาก: รวมฝนรายชั่วโมงให้เสร็จ *ก่อน* merge ----
+    # ถ้า merge ด้วย join="inner" ก่อน เวลาจะถูกตัดให้เหลือเฉพาะ 6 ชั่วโมง
+    # ของชุด pressure levels ทำให้ฝน 5 ใน 6 ชั่วโมงหายไปทั้งหมด
+    # เป็นกับดักเดียวกับที่เตือนไว้ด้านบนของไฟล์นี้ แค่เกิดคนละจุด
+    if "tp" in sl:
+        hours = pd.to_datetime(sl["time"].values)
+        if len(hours) > 1 and (hours[1] - hours[0]) < pd.Timedelta(hours=6):
+            tp6 = (sl["tp"] * 1000.0).resample(
+                time="6h", closed="right", label="right").sum()
+            n_in, n_out = len(hours), len(tp6["time"])
+            print(f"    รวมฝนรายชั่วโมง {n_in} ช่วง -> ราย 6 ชั่วโมง {n_out} ช่วง")
+        else:
+            tp6 = sl["tp"] * 1000.0
+            print("    ข้อมูลฝนเป็นราย 6 ชั่วโมงอยู่แล้ว ไม่ต้องรวม")
+
+        others = sl.drop_vars("tp")
+        others = others.sel(time=others["time"].dt.hour.isin([0, 6, 12, 18]))
+        common = others["time"].values
+        sl = others.assign(tp=tp6.sel(time=common))
+
     merged = xr.merge([pl, sl], compat="override", join="inner")
-    return _finalize(merged, case, resolution=None, tp_in_metres=True)
+
+    # tp แปลงเป็นมิลลิเมตรและรวมเรียบร้อยแล้ว จึงส่ง tp_in_metres=False
+    return _finalize(merged, case, resolution=None, tp_in_metres=False)
 
 
 # ------------------------------------------------------------------
