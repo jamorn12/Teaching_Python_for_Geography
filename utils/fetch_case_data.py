@@ -1,7 +1,7 @@
 """
 fetch_case_data.py
 ------------------------------------------------------------------
-ดึงข้อมูล ERA5 reanalysis **ของจริง** สำหรับกรณีศึกษาพายุ 3 เหตุการณ์
+ดึงข้อมูล ERA5 reanalysis **ของจริง** สำหรับกรณีศึกษา 4 เหตุการณ์
 แล้วเขียนเป็นไฟล์ NetCDF เล็ก ๆ ที่พร้อมอัปขึ้น GitHub
 
 ผู้สอนรันไฟล์นี้ครั้งเดียว แล้ว commit ผลลัพธ์ขึ้น repo
@@ -36,7 +36,7 @@ ERA5 รุ่นสมบูรณ์ออกช้ากว่าเวลา
 
   มิติ      time (ราย 6 ชั่วโมง) x level x latitude x longitude
   level     1000, 925, 850, 700, 500, 200 hPa
-  ความละเอียด 0.5 องศา (ปรับได้ด้วย --resolution)
+  ความละเอียด 0.5 องศา สำหรับเคสพายุ และ 0.25 องศา สำหรับเคส กทม.
   ตัวแปร    msl, t2m, tp, u, v, z, r
 
   หน่วยถูกเก็บตามต้นฉบับ ERA5 ทุกตัว **ยกเว้น tp**
@@ -113,6 +113,44 @@ def fetch_from_gcs(case: dict, resolution: float) -> xr.Dataset:
 
 
 # ------------------------------------------------------------------
+# CDS รุ่นใหม่ส่งไฟล์กลับมาเป็น zip เมื่อขอหลายตัวแปรพร้อมกัน
+# ------------------------------------------------------------------
+def open_cds_result(path: str) -> xr.Dataset:
+    """
+    เปิดไฟล์ที่ได้จาก CDS ไม่ว่าจะเป็น NetCDF เดี่ยว หรือ zip ที่มี .nc หลายไฟล์
+
+    ตั้งแต่ปี 2024 CDS เปลี่ยนพฤติกรรม เมื่อขอหลายตัวแปรพร้อมกันจะบีบเป็น zip
+    แต่ยังตั้งชื่อไฟล์ลงท้าย .nc เหมือนเดิม ทำให้ xarray เปิดไม่ออก
+    ฟังก์ชันนี้ตรวจชนิดไฟล์จริงก่อน แล้วแกะ zip ให้อัตโนมัติถ้าจำเป็น
+    """
+    import glob
+    import zipfile
+
+    import era5_utils as eu
+
+    if not zipfile.is_zipfile(path):
+        return eu.open_era5(path)
+
+    extract_dir = path.replace(".nc", "_unzipped")
+    os.makedirs(extract_dir, exist_ok=True)
+    with zipfile.ZipFile(path) as zf:
+        zf.extractall(extract_dir)
+
+    members = sorted(glob.glob(os.path.join(extract_dir, "**", "*.nc"),
+                               recursive=True))
+    if not members:
+        raise RuntimeError(f"ใน {path} เป็น zip แต่ไม่พบไฟล์ .nc ข้างใน")
+
+    print(f"    แกะ zip ได้ {len(members)} ไฟล์:",
+          ", ".join(os.path.basename(m) for m in members))
+
+    parts = [eu.open_era5(m) for m in members]
+    if len(parts) == 1:
+        return parts[0]
+    return xr.merge(parts, compat="override", join="inner")
+
+
+# ------------------------------------------------------------------
 # แหล่งที่ 2 : Copernicus CDS (ต้องสมัคร)
 # ------------------------------------------------------------------
 def fetch_from_cds(case: dict, resolution: float, workdir: str) -> xr.Dataset:
@@ -166,9 +204,8 @@ def fetch_from_cds(case: dict, resolution: float, workdir: str) -> xr.Dataset:
             sl_path,
         )
 
-    import era5_utils as eu
-    pl = eu.open_era5(pl_path)
-    sl = eu.open_era5(sl_path)
+    pl = open_cds_result(pl_path)
+    sl = open_cds_result(sl_path)
     merged = xr.merge([pl, sl], compat="override", join="inner")
     return _finalize(merged, case, resolution=None, tp_in_metres=True)
 
