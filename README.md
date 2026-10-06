@@ -37,7 +37,7 @@
 | 09 | NumPy & Pandas | array, vectorization, masking, `NaN`, DataFrame, `groupby` | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/09_NumPy_and_Pandas_Basics.ipynb) |
 | 10 | Matplotlib | line/bar/scatter/histogram, `subplots`, ฟอนต์ไทย, `savefig` | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/10_Matplotlib_Visualization.ipynb) |
 | 11 | Mini Project | วิเคราะห์ฝนรายวันจังหวัดชลบุรี ปี 2025 ครบกระบวนการ | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/11_MiniProject_Rainfall_Analysis.ipynb) |
-| 12 | **บทเสริม** — ERA5 Weather Maps | NetCDF, `xarray`, `cartopy`, wind barb, streamline, แผนที่หลายช่วงเวลา | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/12_ERA5_Weather_Maps.ipynb) |
+| 12 | **บทเสริม** — วิเคราะห์เหตุการณ์ที่กระทบไทย 4 เหตุการณ์ | NetCDF, `xarray`, `cartopy`, เส้นทางพายุ, แผนที่รายวัน D-5 ถึง D+2 | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/12_ERA5_Weather_Maps.ipynb) |
 
 ---
 
@@ -72,10 +72,17 @@ Teaching_Python_for_Geography/
 │   ├── stations.csv               <- ข้อมูลสถานี 4 แห่ง จ.ชลบุรี
 │   ├── rainfall_daily_2025.csv    <- ฝนรายวัน 4 สถานี ตลอดปี 2025 (1,460 แถว)
 │   ├── messy_rainfall.csv         <- ข้อมูลสกปรก ใช้สอน error handling
-│   └── era5_demo_20250914.nc      <- ข้อมูลกริดโครงสร้างแบบ ERA5 ใช้ในบทที่ 12
+│   ├── era5_demo_20250914.nc      <- ข้อมูลกริดสาธิต (ไม่ได้ใช้แล้วตั้งแต่ปรับบทที่ 12)
+│   └── cases/                     <- ERA5 จริงของพายุ 3 เหตุการณ์ ใช้ในบทที่ 12
+│       ├── dianmu2021.nc          <- เตี้ยนหมู่ 24 ก.ย. 2564
+│       ├── noru2022.nc            <- โนรู 28 ก.ย. 2565
+│       ├── yagi2024.nc            <- ยางิ 7 ก.ย. 2567
+│       └── bangkok2026.nc         <- น้ำท่วม กทม. 25 ก.ย. 2569
 └── utils/
     ├── make_datasets.py           <- script สร้างชุดข้อมูลฝนใหม่ (เปลี่ยนปี/สถานีได้)
-    ├── make_era5_demo.py          <- script สร้างชุดข้อมูลกริดแบบ ERA5 ใหม่
+    ├── make_era5_demo.py          <- script สร้างชุดข้อมูลกริดสาธิต
+    ├── fetch_case_data.py         <- script ดึง ERA5 จริงของกรณีศึกษา (ผู้สอนรันครั้งเดียว)
+    ├── era5_cases.py              <- ข้อมูลประกอบและฟังก์ชันวิเคราะห์กรณีศึกษาพายุ
     ├── geo_utils.py               <- ฟังก์ชันที่ใช้ซ้ำได้ ทั้งคอร์ส
     └── era5_utils.py              <- ฟังก์ชันเปิดไฟล์ ERA5 และพล็อตแผนที่อากาศ
 ```
@@ -107,11 +114,30 @@ gu.annual_summary(df)
 หากต้องการเปลี่ยนไปใช้ข้อมูลจริง ให้แทนที่ไฟล์ใน `data/` โดยคงชื่อคอลัมน์เดิมไว้
 (`date`, `station_id`, `station_name`, `province`, `rain_mm`) โค้ดทุกบทจะทำงานต่อได้เลย
 
-ไฟล์ `era5_demo_20250914.nc` ที่ใช้ในบทที่ 12 ก็เป็นข้อมูลสังเคราะห์เช่นกัน
-สร้างให้มีโครงสร้างเหมือน ERA5 reanalysis ทุกอย่าง (ชื่อตัวแปร มิติ หน่วย CF convention)
-จำลองหย่อมความกดอากาศต่ำเคลื่อนจากอ่าวตังเกี๋ยเข้าสู่อินโดจีน
-วิธีดึง ERA5 ตัวจริงจาก Copernicus Climate Data Store อยู่ในภาคผนวกท้ายบทที่ 12
-และเมื่อเปลี่ยนไปใช้ไฟล์จริงแล้ว โค้ดในบทนั้นใช้ได้เหมือนเดิมไม่ต้องแก้
+### ข้อมูลของบทที่ 12 เป็นของจริง
+
+ไฟล์ใน `data/cases/` เป็น **ERA5 reanalysis ของ ECMWF ตัวจริง** ไม่ใช่ข้อมูลสังเคราะห์
+ถูกตัดเฉพาะโดเมนและช่วงเวลาที่ใช้ แล้วลดความละเอียดเหลือ 0.5 องศา เพื่อให้ไฟล์เล็กพอ
+
+| ไฟล์ | เหตุการณ์ | ช่วงเวลา | ความละเอียด |
+|---|---|---|---|
+| `dianmu2021.nc` | พายุโซนร้อนเตี้ยนหมู่ | 19–26 ก.ย. 2564 | 0.5° |
+| `noru2022.nc` | ไต้ฝุ่น/โซนร้อนโนรู | 23–30 ก.ย. 2565 | 0.5° |
+| `yagi2024.nc` | ไต้ฝุ่นยางิ | 2–9 ก.ย. 2567 | 0.5° |
+| `bangkok2026.nc` | น้ำท่วมกรุงเทพมหานคร | 20–27 ก.ย. 2569 | 0.25° |
+
+แต่ละไฟล์ครอบคลุม **5 วันก่อนเกิดเหตุ จนถึง 2 วันหลัง** (D-5 ถึง D+2) ราย 6 ชั่วโมง
+6 ระดับความกดอากาศ พร้อมตัวแปร `msl`, `t2m`, `tp`, `u`, `v`, `z`, `r`
+
+เคส กทม. ใช้ความละเอียดสูงกว่าเพราะเป็นเหตุการณ์ระดับเมือง แต่ถึงอย่างนั้น
+กริด 0.25° (~28 กม.) ก็ยังหยาบเกินกว่าจะเห็นฝนระดับเขตได้ — บทเรียนข้อนี้อยู่ในหัวข้อ 4.5
+
+เมื่อนำผลไปใช้ในรายงานหรืองานวิชาการ **ต้องอ้างอิงแหล่งข้อมูล**
+Hersbach, H. et al. (2020). The ERA5 global reanalysis.
+*Quarterly Journal of the Royal Meteorological Society*, 146(730), 1999–2049.
+
+ลำดับเหตุการณ์ของทั้งสามกรณีอ้างอิงจากประกาศกรมอุตุนิยมวิทยาและรายงานข่าว
+ดูรายการแหล่งอ้างอิงเต็มได้ในโน้ตบุ๊กบทที่ 12 หรือใน `utils/era5_cases.py`
 
 ---
 

@@ -313,6 +313,23 @@ def setup_thai_font(verbose: bool = True) -> bool:
 # ------------------------------------------------------------------
 # วิเคราะห์เพิ่มเติม
 # ------------------------------------------------------------------
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    ระยะทางวงกลมใหญ่ระหว่างสองพิกัดบนผิวโลก (กิโลเมตร)
+
+    เป็นฟังก์ชันเดียวกับที่เขียนไว้ในบทที่ 07 นำมาไว้ที่นี่ด้วย
+    เพื่อให้บทที่ 12 ใช้ได้โดยไม่ต้องโหลด geo_utils.py เพิ่ม
+    """
+    import math
+
+    R = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlam / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
 def find_low_center(msl: xr.DataArray) -> dict:
     """
     หาตำแหน่งศูนย์กลางความกดอากาศต่ำสุดในสนาม 2 มิติ
