@@ -37,6 +37,8 @@
 | 09 | NumPy & Pandas | array, vectorization, masking, `NaN`, DataFrame, `groupby` | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/09_NumPy_and_Pandas_Basics.ipynb) |
 | 10 | Matplotlib | line/bar/scatter/histogram, `subplots`, ฟอนต์ไทย, `savefig` | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/10_Matplotlib_Visualization.ipynb) |
 | 11 | Mini Project | วิเคราะห์ฝนรายวันจังหวัดชลบุรี ปี 2025 ครบกระบวนการ | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/11_MiniProject_Rainfall_Analysis.ipynb) |
+| 12A | **บทเสริม** — พื้นฐานการพล็อตแผนที่อากาศ | projection vs transform, `contourf`, `contour`, `barbs`, colormap, levels | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/12A_Weather_Map_Plotting_Basics.ipynb) |
+| 12B | **บทเสริม** — วินิจฉัยสภาพบรรยากาศรายวัน (เตี้ยนหมู่ 24 ก.ย. 2564) | vorticity, divergence, shear, thickness, advection, Hovmöller | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/12B_Atmospheric_Diagnostics.ipynb) |
 | 12 | **บทเสริม** — วิเคราะห์เหตุการณ์ที่กระทบไทย 4 เหตุการณ์ | NetCDF, `xarray`, `cartopy`, เส้นทางพายุ, แผนที่รายวัน D-5 ถึง D+2 | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jamorn12/Teaching_Python_for_Geography/blob/main/12_ERA5_Weather_Maps.ipynb) |
 
 ---
@@ -51,7 +53,9 @@
 | 4 | 06 + 07 | ข้อมูลแบบ key–value และการห่อโค้ดเป็นฟังก์ชัน |
 | 5 | 08 + 09 | จากไฟล์จริงสู่ตารางข้อมูล |
 | 6 | 10 + 11 | เห็นภาพ และทำงานจริงหนึ่งชิ้น |
-| — | 12 | **บทเสริม** นอกคอร์ส 12 ชั่วโมง ใช้เป็นคาบที่ 7 งานกลุ่มปลายภาค หรือให้อ่านเอง |
+| — | 12A | **บทเสริม** พื้นฐานการพล็อตแผนที่อากาศ เรียนก่อนบทที่ 12 |
+| — | 12B | **บทเสริม** วินิจฉัยบรรยากาศวันเดียวแบบเจาะลึก เรียนหลัง 12A |
+| — | 12 | **บทเสริม** วิเคราะห์เหตุการณ์จริง 4 กรณี ใช้เป็นคาบที่ 7 หรืองานกลุ่มปลายภาค |
 
 แผนการสอนรายคาบและเฉลยแบบฝึกหัดอยู่ที่คลังของผู้สอน
 ผู้สอนจะแจกเฉลยหลังหมดเวลาทำแบบฝึกหัดในแต่ละคาบ
@@ -67,6 +71,8 @@ Teaching_Python_for_Geography/
 ├── 01_Variables_and_DataTypes.ipynb
 ├── ...
 ├── 11_MiniProject_Rainfall_Analysis.ipynb
+├── 12A_Weather_Map_Plotting_Basics.ipynb
+├── 12B_Atmospheric_Diagnostics.ipynb
 ├── 12_ERA5_Weather_Maps.ipynb     <- บทเสริม
 ├── data/
 │   ├── stations.csv               <- ข้อมูลสถานี 4 แห่ง จ.ชลบุรี
@@ -83,6 +89,7 @@ Teaching_Python_for_Geography/
     ├── make_era5_demo.py          <- script สร้างชุดข้อมูลกริดสาธิต
     ├── fetch_case_data.py         <- script ดึง ERA5 จริงของกรณีศึกษา (ผู้สอนรันครั้งเดียว)
     ├── era5_cases.py              <- ข้อมูลประกอบและฟังก์ชันวิเคราะห์กรณีศึกษาพายุ
+    ├── atmos_diag.py              <- สูตรคำนวณตัวแปรวินิจฉัย ใช้ในบทที่ 12B
     ├── geo_utils.py               <- ฟังก์ชันที่ใช้ซ้ำได้ ทั้งคอร์ส
     └── era5_utils.py              <- ฟังก์ชันเปิดไฟล์ ERA5 และพล็อตแผนที่อากาศ
 ```
